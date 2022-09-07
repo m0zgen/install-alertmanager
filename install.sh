@@ -55,6 +55,11 @@ check_dir() {
 
 }
 
+get_status() {
+  local _STATUS=`systemctl is-active alertmanager.service`
+  echo "alertmanager.service has status: $_STATUS"
+}
+
 install_alertmanager() {
 
     cp  pkg/bin/* /usr/local/bin
@@ -67,19 +72,36 @@ install_alertmanager() {
         echo "Creating user: $_USER .."
         useradd -rs /bin/false alertmanager
     fi
+
+    if [[ -f /etc/alertmanager/alertmanager.yml ]]; then
+      echo "Alertmanager config already installed..."
+    else
+      push_template pkg/alertmanager_conf.tmpl /etc/alertmanager/alertmanager.yml
+      chown -R alertmanager:alertmanager /data/alertmanager /etc/alertmanager
+    fi
+
+    if [[ -f /lib/systemd/system/alertmanager.service ]]; then
+      echo "Alertmanager daemon already installed..."
+      echo "Checking status..."
+      get_status
+    else
+      push_template pkg/alertmanager_unit.tmpl /lib/systemd/system/alertmanager.service
+      chown alertmanager:alertmanager /usr/local/bin/amtool /usr/local/bin/alertmanager
+
+      systemctl daemon-reload
+      systemctl enable --now alertmanager
+    fi
     
-    push_template pkg/alertmanager_conf.tmpl /etc/alertmanager/alertmanager.yml
-    push_template pkg/alertmanager_unit.tmpl /lib/systemd/system/alertmanager.service
-
-    chown -R alertmanager:alertmanager /data/alertmanager /etc/alertmanager
-    chown alertmanager:alertmanager /usr/local/bin/amtool /usr/local/bin/alertmanager
-
-    systemctl daemon-reload
-    systemctl enable --now alertmanager
-
 }
 
 download_release() {
+
+    if [[ -f /lib/systemd/system/alertmanager.service ]]; then
+      echo "Alertmanager daemon already installed..."
+      echo "Checking status..."
+      get_status
+      exit 1
+    fi
 
     check_dir $SCRIPT_PATH/tmp
     check_dir $SCRIPT_PATH/pkg/bin/
