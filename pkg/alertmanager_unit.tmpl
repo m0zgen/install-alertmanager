@@ -7,11 +7,7 @@ After=network-online.target
 Type=simple
 User=alertmanager
 Group=alertmanager
-ExecStart=/usr/local/bin/alertmanager \
-  --config.file=/etc/alertmanager/alertmanager.yml \
-  --storage.path=/data/alertmanager \
-  --web.external-url http://$_SERVER_IP:9093 \
-  --cluster.advertise-address="$_SERVER_IP:9093"
+ExecStart=/usr/local/bin/alertmanager --config.file=/etc/alertmanager/alertmanager.yml --storage.path=/data/alertmanager --web.external-url http://$_SERVER_IP:9093 --cluster.advertise-address="$_SERVER_IP:9093"
 
 
 Restart=always
