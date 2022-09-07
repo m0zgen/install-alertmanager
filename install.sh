@@ -2,21 +2,44 @@
 # Author: Yevgeniy Goncharov aka xck, http://sys-adm.in
 # Install Prometheus AlertManager as a systemd service
 
+set -e
+
 # Sys env / paths / etc
 # -------------------------------------------------------------------------------------------\
 PATH=$PATH:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin
 SCRIPT_PATH=$(cd `dirname "${BASH_SOURCE[0]}"` && pwd)
 cd $SCRIPT_PATH
 
+_USER=alertmanager
+_SERVICE=alertmanager
 _DOWNLOADS=downloads
 _TAR_TARGET=alertmanager
 _LATEST_RELEASE=`curl -s https://api.github.com/repos/prometheus/alertmanager/releases/latest | grep browser_download_url | grep "linux-amd64" | awk '{print $2}' | tr -d '\"'`
 # http://127.0.0.1:9087/alert/<chat_ID> or use another URL like a Slack hook
 _ALERT_URL=http://127.0.0.1:9087/alert/
 _SERVER_IP=`/sbin/ifconfig eth0 | grep 'inet ' | awk '{ print $2}'`
-_USER=alertmanager
+
 # Fncs
 # ---------------------------------------------------\
+
+# Help information
+usage() {
+
+  echo -e "\nArguments:
+  -u (SUninstall alertmanager if exists)
+  "
+  exit 1
+}
+
+# Checks arguments
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        -u|--unistall) _UNINSTALL=1; ;;
+        -h|--help) usage ;; 
+        *) echo "Unknown parameter passed: $1"; exit 1 ;;
+        esac
+        shift
+done
 
 # Check is current user is root
 isRoot() {
@@ -54,6 +77,19 @@ checkDistro() {
     fi
 }
 
+getDate() {
+    date '+%d-%m-%Y_%H-%M-%S'
+}
+
+service_active() {
+    local n=$1
+    if [[ $(systemctl list-units --type=service --state=active | grep $n.service | sed 's/^\s*//g' | cut -f1 -d' ') == $n.service ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
 function render_template() {
   eval "echo \"$(cat $1)\""
 }
@@ -64,6 +100,14 @@ function push_template {
 final_steps() {
     echo -e "Please update target URL in /etc/alertmanager/alertmanager.yml"
     echo -e "Please update Alertmanager URL in /etc/prometheus/prometheus.yml"
+}
+
+installs() {
+
+  if [[ ! "$(command -v $2)" ]]; then
+        $1 -y install $2
+  fi
+
 }
 
 check_dir() {
@@ -77,6 +121,7 @@ check_dir() {
 get_status() {
   local _STATUS=`systemctl is-active alertmanager.service`
   echo "alertmanager.service has status: $_STATUS"
+
 }
 
 install_alertmanager() {
@@ -103,11 +148,39 @@ install_alertmanager() {
 
 }
 
-installs() {
 
-  if [[ ! "$(command -v $2)" ]]; then
-        $1 -y install $2
+
+uninstall() {
+
+  local _BKP=$SCRIPT_PATH/backup
+
+  if service_active "$_SERVICE"; then
+    systemctl stop $_SERVICE.service
   fi
+
+  check_dir $_BKP
+
+  if [[ -f /lib/systemd/system/alertmanager.service ]]; then
+      cp /lib/systemd/system/alertmanager.service "$_BKP/alertmanager.service_$(getDate).bkp"
+      rm -f /lib/systemd/system/alertmanager.service
+      systemctl daemon-reload
+  fi
+
+  if [[ -f /etc/alertmanager/alertmanager.yml ]]; then
+      cp /etc/alertmanager/alertmanager.yml "$_BKP/alertmanager.yml_$(getDate).bkp"
+      rm -f /lib/systemd/system/alertmanager.service
+  fi
+
+  if [[ -f /usr/local/bin/alertmanager ]]; then
+      rm -f /usr/local/bin/alertmanager
+  fi
+
+  if [[ -f /usr/local/bin/amtool ]]; then
+      rm -f /usr/local/bin/amtool
+  fi
+
+  echo "Backups located in: $_BKP"
+  echo "Done."
 
 }
 
@@ -122,8 +195,6 @@ init() {
       echo "Alertmanager config already installed... Please verify previous installation."
       exit 1
     fi
-
-    check_utils
 
     check_dir $SCRIPT_PATH/tmp
     check_dir $SCRIPT_PATH/pkg/bin/
@@ -151,6 +222,8 @@ init() {
 
     install_alertmanager
 
+    exit 0
+
 }
 
 # Acts
@@ -158,6 +231,11 @@ init() {
 
 isRoot
 checkDistro
+
+if [[ "$_UNINSTALL" -eq "1" ]]; then
+  uninstall
+  exit 0
+fi
 
 if [[ "$RPM" -eq "1" ]]; then
     echo "CentOS detected..."
@@ -175,4 +253,3 @@ fi
 
 #
 init
-
