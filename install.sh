@@ -73,33 +73,26 @@ install_alertmanager() {
         useradd -rs /bin/false alertmanager
     fi
 
-    if [[ -f /etc/alertmanager/alertmanager.yml ]]; then
-      echo "Alertmanager config already installed..."
-    else
-      push_template pkg/alertmanager_conf.tmpl /etc/alertmanager/alertmanager.yml
-      chown -R alertmanager:alertmanager /data/alertmanager /etc/alertmanager
-    fi
+    push_template pkg/alertmanager_conf.tmpl /etc/alertmanager/alertmanager.yml
+    chown -R alertmanager:alertmanager /data/alertmanager /etc/alertmanager
 
-    if [[ -f /lib/systemd/system/alertmanager.service ]]; then
-      echo "Alertmanager daemon already installed..."
-      echo "Checking status..."
-      get_status
-    else
-      push_template pkg/alertmanager_unit.tmpl /lib/systemd/system/alertmanager.service
-      chown alertmanager:alertmanager /usr/local/bin/amtool /usr/local/bin/alertmanager
+    push_template pkg/alertmanager_unit.tmpl /lib/systemd/system/alertmanager.service
+    chown alertmanager:alertmanager /usr/local/bin/amtool /usr/local/bin/alertmanager
 
-      systemctl daemon-reload
-      systemctl enable --now alertmanager
-    fi
-    
+    systemctl daemon-reload
+    systemctl enable --now alertmanager
+
 }
 
-download_release() {
+init() {
 
     if [[ -f /lib/systemd/system/alertmanager.service ]]; then
       echo "Alertmanager daemon already installed..."
       echo "Checking status..."
       get_status
+      exit 1
+    elif [[ -f /etc/alertmanager/alertmanager.yml ]]; then
+      echo "Alertmanager config already installed... Please verify previous installation."
       exit 1
     fi
 
@@ -135,8 +128,4 @@ download_release() {
 # ---------------------------------------------------\
 
 isRoot
-download_release
-
-
-
-
+init
