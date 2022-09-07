@@ -35,6 +35,25 @@ isRoot() {
   fi
 }
 
+# Checks supporting distros
+checkDistro() {
+    # Checking distro
+    if [ -e /etc/centos-release ]; then
+        DISTRO=`cat /etc/redhat-release | awk '{print $1,$4}'`
+        RPM=1
+    elif [ -e /etc/fedora-release ]; then
+        DISTRO=`cat /etc/fedora-release | awk '{print ($1,$3~/^[0-9]/?$3:$4)}'`
+        RPM=2
+    elif [ -e /etc/os-release ]; then
+        DISTRO=`lsb_release -d | awk -F"\t" '{print $2}'`
+        RPM=0
+        DEB=1
+    else
+        Error "Your distribution is not supported (yet)"
+        exit 1
+    fi
+}
+
 function render_template() {
   eval "echo \"$(cat $1)\""
 }
@@ -84,6 +103,14 @@ install_alertmanager() {
 
 }
 
+installs() {
+
+  if [[ ! "$(command -v $2)" ]]; then
+        $1 -y install $2
+  fi
+
+}
+
 init() {
 
     if [[ -f /lib/systemd/system/alertmanager.service ]]; then
@@ -95,6 +122,8 @@ init() {
       echo "Alertmanager config already installed... Please verify previous installation."
       exit 1
     fi
+
+    check_utils
 
     check_dir $SCRIPT_PATH/tmp
     check_dir $SCRIPT_PATH/pkg/bin/
@@ -128,4 +157,22 @@ init() {
 # ---------------------------------------------------\
 
 isRoot
+checkDistro
+
+if [[ "$RPM" -eq "1" ]]; then
+    echo "CentOS detected..."
+    installs "yum" "wget"
+elif [[ "$RPM" -eq "2" ]]; then
+    echo "Fedora detected... "
+    installs "dnf" "wget"
+elif [[ "$DEB" -eq "1" ]]; then
+    echo "Debian detected... "
+    installs "apt" "wget"
+else
+    echo "Unknown distro. Exit."
+    exit 1
+fi
+
+#
 init
+
