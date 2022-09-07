@@ -37,7 +37,7 @@ isRoot() {
 function render_template() {
   eval "echo \"$(cat $1)\""
 }
-function generate_template {
+function push_template {
   render_template $1 > $2
 }
 
