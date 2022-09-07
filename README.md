@@ -4,6 +4,9 @@ Features:
 
 * Download latest release
 * Install as systemd service
+* Uninstaller
+* CentOS support
+* Debian support
 
 ## Additional steps
 
